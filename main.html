@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frostbound RNG</title>
+<link rel="icon" type="image/png" href="Fav.png">
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #071020;
+  --panel: rgba(13, 27, 47, .94);
+  --line: #263b54;
+  --text: #eaf6ff;
+  --muted: #a5b7cb;
+  --ice: #8fd9ef;
+  --accent: #38516e;
+  --gold: #ffd76a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse at 50% 0%, #152943 0%, transparent 65%),
+    var(--bg);
+}
+
+button, select, input { font: inherit; }
+button, select, input[type="search"] {
+  color: var(--text);
+  background: #14263c;
+  border: 1px solid #38516e;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #203852; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, select:focus-visible,
+input:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 4px;
+}
+button.primary { background: #244b68; }
+button.primary:hover:not(:disabled) { background: #306182; }
+button.sell { background: #5c2434; border-color: #a75a6d; }
+button.sell:hover:not(:disabled) { background: #742c40; }
+
+#snow {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.save-icon {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 90;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px rgba(143,217,239,.55));
+  transition: opacity .25s ease;
+}
+.save-icon.visible { opacity: 1; animation: savePulse 1s ease-in-out infinite; }
+.save-icon.fading { opacity: 0; animation: none; }
+
+@keyframes savePulse {
+  0%, 100% { opacity: .45; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+.wrap {
+  max-width: 1150px;
+  margin: auto;
+  padding: 26px 18px 55px;
+}
+
+header { text-align: center; margin-bottom: 22px; }
+
+.logo-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: block;
+  margin: auto;
+  max-width: 100%;
+}
+.logo-button:hover:not(:disabled) { background: transparent; }
+
+.logo {
+  display: block;
+  width: clamp(180px, 42vw, 380px);
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+  filter:
+    drop-shadow(0 0 5px rgba(143,217,239,.45))
+    drop-shadow(0 5px 12px rgba(92,155,220,.22));
+}
+.logo-fallback {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  font-weight: 900;
+  letter-spacing: 5px;
+  text-shadow: 0 0 10px #79b9d780;
+}
+
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.stat {
+  min-width: 125px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+.stat b {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--ice);
+}
+.stat span {
+  display: block;
+  font-size: .85rem;
+  margin-top: 3px;
+  font-weight: 700;
+}
+.stat.coin b { color: var(--gold); }
+
+.save-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.small { color: var(--muted); font-size: .8rem; }
+
+.main {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.panel {
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 20px;
+}
+
+.section-title {
+  color: var(--ice);
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 0 0 14px;
+}
+
+.stage {
+  min-height: 530px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: linear-gradient(#101e32, #091321);
+  padding: 20px;
+}
+
+.result-card {
+  width: min(320px, 100%);
+  padding: 16px;
+  border: 2px solid var(--accent);
+  border-radius: 18px;
+  background: #0c1829;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+.result-card:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 4px;
+}
+
+.result-card.rolling {
+  border-color: var(--accent);
+  box-shadow: 0 0 22px rgba(143,217,239,.18);
+}
+
+.result-card.rolling .portrait img {
+  animation: cardRollDown .16s linear;
+}
+
+@keyframes cardRollDown {
+  from {
+    transform: translateY(-38%) scale(1.04);
+    opacity: .25;
+    filter: blur(1px);
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.portrait {
+  aspect-ratio: 1;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  background: #07101b;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border: 20px solid transparent;
+  box-sizing: border-box;
+}
+.missing { padding: 16px; color: var(--muted); overflow-wrap: anywhere; }
+
+.name {
+  margin: 12px 0 8px;
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.rarity {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.odds {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: .83rem;
+  font-weight: 700;
+}
+
+.controls, .preferences, .collection-tools, .shop-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.controls { justify-content: center; margin-top: 16px; }
+
+.preferences {
+  justify-content: center;
+  margin-top: 15px;
+  color: var(--muted);
+  font-size: .85rem;
+  font-weight: 700;
+}
+.preferences label,
+.collection-tools label.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.preferences input[type="checkbox"],
+.collection-tools input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 2px solid #44617d;
+  border-radius: 6px;
+  background: #0c1829;
+  display: grid;
+  place-items: center;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.preferences input[type="checkbox"]:hover,
+.collection-tools input[type="checkbox"]:hover {
+  border-color: var(--ice);
+  box-shadow: 0 0 8px rgba(143,217,239,.35);
+}
+
+.preferences input[type="checkbox"]:checked,
+.collection-tools input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, #2b5f7d, #1b3c55);
+  border-color: var(--ice);
+  box-shadow: 0 0 10px rgba(143,217,239,.45);
+}
+
+.preferences input[type="checkbox"]:checked::after,
+.collection-tools input[type="checkbox"]:checked::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid #d9f6ff;
+  border-bottom: 2px solid #d9f6ff;
+  transform: rotate(-45deg);
+  margin-top: -2px;
+}
+
+.history { list-style: none; padding: 0; margin: 0; max-height: 420px; overflow: auto; }
+.history li {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: .85rem;
+  font-weight: 700;
+}
+.history li span:last-child { text-align: right; }
+.new-tag { color: var(--ice); font-size: .7rem; margin-left: 6px; }
+
+.collection-panel, .shop-panel { margin-top: 18px; }
+.collection-panel > summary,
+.shop-panel > summary {
+  cursor: pointer;
+  color: var(--ice);
+  font-size: 1.05rem;
+  font-weight: 900;
+  padding: 2px;
+}
+
+.collection-tools { margin-top: 18px; }
+.collection-tools label { color: var(--muted); font-size: .85rem; font-weight: 700; }
+.collection-tools input[type="search"] { flex: 1; min-width: 160px; }
+.collection-tools select { max-width: 100%; }
+
+.shop-row { margin-top: 16px; }
+.shop-info { color: var(--muted); font-weight: 700; }
+
+.rarity-group { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 15px; }
+.rarity-group > summary {
+  cursor: pointer;
+  color: var(--group-color);
+  font-weight: 900;
+}
+
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.collect-card {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: center;
+  background: #0c1829;
+}
+.collect-card .portrait { margin-bottom: 9px; }
+.collect-card .card-name {
+  display: block;
+  color: var(--accent);
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+.collect-card .small { display: block; margin-top: 5px; font-weight: 700; }
+.collect-card.locked { opacity: .55; }
+.locked-portrait { font-size: 2rem; color: #8fa0b6; }
+.empty { padding: 20px 0; color: var(--muted); }
+
+.ring {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+.ring.play { animation: ringOut .8s ease-out; }
+@keyframes ringOut {
+  from { opacity: .6; transform: scale(.3); }
+  to { opacity: 0; transform: scale(4); }
+}
+
+.result-card.reveal { animation: cardIn .35s ease-out; }
+@keyframes cardIn {
+  from { opacity: .2; transform: translateY(12px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.stage.rare-reveal { animation: rareBorder .7s ease-out; }
+@keyframes rareBorder {
+  40% { border-color: var(--accent); }
+}
+
+.spark {
+  position: absolute;
+  pointer-events: none;
+  color: var(--accent);
+  animation: sparkRise .8s ease-out forwards;
+}
+@keyframes sparkRise {
+  from { transform: translateY(15px); opacity: .8; }
+  to { transform: translateY(-85px); opacity: 0; }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  padding: 22px;
+  background: rgba(3, 9, 18, .96);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+}
+
+.cinematic-content {
+  width: min(390px, 100%);
+  max-height: 94vh;
+  overflow: auto;
+  text-align: center;
+  position: relative;
+  animation: discovery .5s ease-out;
+}
+#cinematic.fast .cinematic-content { animation-duration: .22s; }
+@keyframes discovery {
+  from { transform: scale(.85) translateY(20px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.cinematic-content .portrait {
+  width: min(300px, 70vw);
+  margin: auto;
+  border: 2px solid var(--accent);
+}
+.cinematic-content .portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 20%;
+  box-sizing: border-box;
+}
+.cinematic-content h2 {
+  color: var(--accent);
+  font-size: clamp(1.6rem, 6vw, 2.5rem);
+  font-weight: 900;
+}
+
+.discovery-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-size: .8rem;
+  font-weight: 900;
+  margin-bottom: 18px;
+}
+
+.cinematic-content .ring { left: 50%; top: 35%; margin: -70px; z-index: -1; }
+
+.preview-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+#skipReveal { margin-top: 16px; }
+
+.modal-card {
+  background: #101e31;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  width: min(420px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 22px;
+  text-align: center;
+}
+.modal-card .portrait { max-width: 260px; margin: auto; }
+.modal-card h2 { color: var(--accent); font-weight: 900; }
+.modal-card p { color: var(--muted); font-weight: 700; }
+
+.toast {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  z-index: 100;
+  padding: 12px 18px;
+  background: #13273d;
+  color: var(--ice);
+  border: 1px solid #44617d;
+  border-radius: 10px;
+  letter-spacing: 1px;
+  font-weight: 900;
+}
+
+.debug-launch {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 45;
+}
+
+.debug-panel {
+  position: fixed;
+  bottom: 70px;
+  right: 18px;
+  z-index: 50;
+  width: min(330px, calc(100vw - 36px));
+  max-height: 75vh;
+  overflow: auto;
+  background: #101e31;
+  border: 1px solid #a77585;
+  padding: 18px;
+  border-radius: 15px;
+}
+.debug-panel h2 { margin-top: 0; font-size: 1rem; font-weight: 900; }
+.debug-controls { display: grid; gap: 9px; }
+
+@media (max-width: 800px) {
+  .main { grid-template-columns: 1fr; }
+  .stage { min-height: 520px; }
+  .panel { padding: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
+</head>
+
+<body>
+<canvas id="snow" aria-hidden="true"></canvas>
+<img src="saveicon.png" class="save-icon" id="saveStatus" alt="Saving" hidden>
+
+<div class="wrap">
+  <header>
+    <button class="logo-button" id="logoButton" aria-label="Frostbound">
+      <img src="Logo.png" class="logo" id="logo" alt="FROSTBOUND" draggable="false">
+      <span class="logo-fallback" id="logoFallback" hidden>FROSTBOUND</span>
+    </button>
+
+    <div class="stats">
+      <div class="stat"><b id="totalRolls">0</b><span>Total Rolls</span></div>
+      <div class="stat"><b id="uniqueCount">0</b><span>Unique</span></div>
+      <div class="stat"><b id="dupeCount">0</b><span>Duplicates</span></div>
+      <div class="stat"><b id="rarePulls">0</b><span>Ancient+</span></div>
+      <div class="stat coin"><b id="coinCount">0</b><span>Coins</span></div>
+      <div class="stat"><b id="luckCount">0</b><span>Luck</span></div>
+    </div>
+
+    <div class="save-row">
+      <button id="saveButton">Save</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="main">
+      <section class="panel" aria-label="Summoning">
+        <div class="stage" id="stage">
+          <div class="ring" id="stageRing"></div>
+
+          <article class="result-card" id="resultCard" tabindex="0" role="button" aria-label="Open card preview">
+            <div class="portrait" id="resultPortrait">
+              <span class="missing">Awaiting summon…</span>
+            </div>
+            <h2 class="name" id="resultName">???</h2>
+            <span class="rarity" id="resultRarity">Unknown</span>
+            <div class="odds" id="resultOdds">Press Roll to summon</div>
+          </article>
+        </div>
+
+        <div class="controls">
+          <button class="primary" id="rollBtn">Roll</button>
+          <button id="quickBtn">Quick Roll</button>
+          <button id="autoBtn" aria-pressed="false">Auto Roll: Off</button>
+        </div>
+
+        <div class="preferences">
+          <label><input type="checkbox" id="effectsToggle"> Reveal effects</label>
+          <label><input type="checkbox" id="intenseToggle"> Rare accents</label>
+          <label><input type="checkbox" id="snowToggle"> Snow</label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="section-title">Recent Summons</h2>
+        <ul class="history" id="history"></ul>
+      </section>
+    </div>
+
+    <details class="panel shop-panel" id="shopPanel">
+      <summary>Shop</summary>
+
+      <div class="shop-row">
+        <button class="primary" id="buyLuck">Buy +1 Luck</button>
+        <span class="shop-info" id="luckPrice">Cost: 25 coins</span>
+      </div>
+
+      <p class="small">
+        Luck makes rare, epic, legendary, mythic, ancient, and forbidden cards more likely to appear.
+      </p>
+    </details>
+
+    <details class="panel collection-panel" id="collectionPanel" open>
+      <summary>Collection <span class="small" id="collectionCount"></span></summary>
+
+      <div class="collection-tools">
+        <input type="search" id="searchInput" placeholder="Search discovered cards…" aria-label="Search collection">
+        <label>
+          Sort
+          <select id="sortSelect">
+            <option value="rarity">Rarity</option>
+            <option value="name">Name A–Z</option>
+            <option value="rarest">Rarest first</option>
+            <option value="count">Most collected</option>
+          </select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="ownedOnly"> Owned only</label>
+        <button id="expandGroups">Expand groups</button>
+        <button id="collapseGroups">Collapse groups</button>
+      </div>
+
+      <div id="collection"></div>
+    </details>
+  </main>
+</div>
+
+<div class="overlay" id="cinematic" hidden role="dialog" aria-modal="true" aria-labelledby="cineName">
+  <div class="cinematic-content" id="cineContent">
+    <div class="ring" id="cineRing"></div>
+    <div class="discovery-label" id="cineLabel">New companion discovered</div>
+
+    <div class="portrait" id="cinePortrait"></div>
+    <h2 id="cineName"></h2>
+    <span class="rarity" id="cineRarity"></span>
+    <p class="small" id="cineOdds"></p>
+    <p class="small" id="cineOwned"></p>
+
+    <div class="preview-actions">
+      <button class="sell" id="previewSellOne">Sell 1</button>
+      <button class="sell" id="previewSellAll">Sell All</button>
+    </div>
+
+    <button id="skipReveal">Exit</button>
+  </div>
+</div>
+
+<div class="overlay" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalName">
+  <div class="modal-card" id="modalCard">
+    <div class="portrait" id="modalPortrait"></div>
+    <h2 id="modalName"></h2>
+    <span class="rarity" id="modalRarity"></span>
+    <p id="modalCount"></p>
+    <p id="modalOdds"></p>
+    <button id="closeModal">Close</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<button class="debug-launch" id="debugButton" hidden>Debug</button>
+<aside class="debug-panel" id="debugPanel" hidden>
+  <h2>DEBUG</h2>
+  <div class="debug-controls">
+    <select id="debugCharacter" aria-label="Debug character"></select>
+    <button id="debugPreview">Preview discovery</button>
+    <button id="debugGive">Give selected card</button>
+    <button id="debugGiveAll">Unlock all</button>
+    <button id="debugRoll100">Roll 100 times</button>
+    <button id="debugAddCoins">Add 100 coins</button>
+    <button id="debugReset">Reset progress</button>
+    <button id="debugClose">Close</button>
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+const DATA = [
+  ["emerald", "Emerald", "/character/Emerald.png", "rare", 18, "#6cffb0"],
+  ["azul", "Azul", "/character/Azul.png", "rare", 18, "#6ce7ff"],
+  ["ginger", "Ginger", "/character/Ginger.png", "epic", 11, "#ffd76a"],
+  ["doug", "Doug", "/character/Doug.png", "epic", 10, "#ff9d5f"],
+  ["jacob", "Jacob", "/character/Jacob.png", "epic", 9, "#8fb8ff"],
+  ["frost", "Frost", "/character/Frost.png", "legendary", 6, "#9fe8ff"],
+  ["sav", "Sav", "/character/Sav.png", "legendary", 6, "#c7a6ff"],
+  ["modern", "Modern", "/character/Modern.png", "legendary", 5, "#7fb0ff"],
+  ["snow", "Snow", "/character/Snow.png", "mythic", 2, "#ff5f7a"],
+  ["tessa", "Tessa", "/character/Tessa.png", "rare", 12, "#ffe08a"],
+  ["mochi", "Mochi", "/character/Mochi.png", "mythic", 2, "#ff9ad5"],
+  ["poppy", "Poppy", "/character/Poppy.png", "common", 30, "#c1d3e3"],
+  ["bob", "Bob", "/character/Bob.png", "common", 30, "#c1d3e3"],
+  ["studentfrog", "Student Frog", "/character/StudentFrog.png", "common", 24, "#acd9b1"],
+  ["ambientfrog", "Ambient Frog", "/character/AmbientFrog.png", "common", 24, "#acd9b1"],
+  ["bluebird", "Blue Bird", "/character/BlueBird.png", "common", 24, "#8fd6ff"],
+  ["clara", "Clara", "/character/Clara.png", "common", 20, "#c1d3e3"],
+  ["drvale", "Dr. Vale", "/character/DrVale.png", "rare", 14, "#8fb8ff"],
+  ["drbell", "Dr. Bell", "/character/DrBell.png", "rare", 14, "#8fb8ff"],
+  ["drwren", "Dr. Wren", "/character/DrWren.png", "rare", 14, "#8fb8ff"],
+  ["kiki", "Kiki", "/character/Kiki.png", "rare", 13, "#ffb3c7"],
+  ["molly", "Molly", "/character/Molly.png", "rare", 13, "#ffb3c7"],
+  ["sarah", "Sarah", "/character/Sarah.png", "rare", 13, "#ffb3c7"],
+  ["sage", "Sage", "/character/Sage.png", "rare", 13, "#b8ffd9"],
+  ["snorfle", "Snorfle", "/character/Snorfle.png", "rare", 12, "#ffd0a1"],
+  ["marketableemerald", "Marketable Emerald™", "/character/MarketableEmerald.png", "epic", 9, "#6cffb0"],
+
+  ["emeraldamongus", "Emerald — Among the Crew", "/character/EmeraldAmongUs.png", "sus", 8, "#ff8a8a"],
+  ["azulamongus", "Azul — Among the Crew", "/character/AzulAmongUs.png", "sus", 8, "#6ce7ff"],
+  ["gingeramongus", "Ginger — Among the Crew", "/character/GingerAmongUs.png", "sus", 8, "#ffd76a"],
+  ["dougamongus", "Doug — Among the Crew", "/character/DougAmongUs.png", "ejected", 3, "#b5c0d3"],
+  ["jacobamongus", "Jacob — Among the Crew", "/character/JacobAmongUs.png", "sus", 8, "#8fb8ff"],
+  ["frostamongus", "Frost — Among the Crew", "/character/FrostAmongUs.png", "sus", 8, "#9fe8ff"],
+  ["savamongus", "Sav — Among the Crew", "/character/SavAmongUs.png", "sus", 8, "#c7a6ff"],
+  ["modernamongus", "Modern — Among the Crew", "/character/ModernAmongUs.png", "sus", 8, "#7fb0ff"],
+
+  ["timber", "Timber", "/character/Timber.png", "legendary", 5, "#d4a57e"],
+  ["hazel", "Hazel", "/character/Hazel.png", "legendary", 5, "#d1ac87"],
+  ["deademerald", "Dead Emerald", "/character/DeadEmerald.png", "ancient", 2, "#ff9ad5"],
+  ["profazul", "Prof. Azul", "/character/ProfAzul.png", "ancient", 2, "#7fe3ff"],
+  ["cafeazul", "Café Azul (Sleepy)", "/character/CafeAzulSleepy.png", "ancient", 2, "#c8a2ff"],
+  ["gingergod", "Ginger (GOD)", "/character/GingerGod.png", "forbidden", 1, "#ffffff"]
+];
+
+const CHARACTERS = DATA.map(([id, name, image, rarity, weight, color]) =>
+  ({ id, name, image, rarity, weight, color })
+);
+const BY_ID = new Map(CHARACTERS.map(c => [c.id, c]));
+
+const RARITIES = {
+  common: { label: "Common", color: "#b8c9db", sell: 1, luck: 0 },
+  rare: { label: "Rare", color: "#8ab8ff", sell: 3, luck: .03 },
+  epic: { label: "Epic", color: "#c7a0ff", sell: 6, luck: .06 },
+  legendary: { label: "Legendary", color: "#ffd76a", sell: 12, luck: .10 },
+  mythic: { label: "Mythic", color: "#ff859b", sell: 25, luck: .18 },
+  ancient: { label: "Ancient", color: "#ff9ad5", sell: 50, luck: .28 },
+  forbidden: { label: "Forbidden", color: "#ffffff", sell: 100, luck: .45 },
+  sus: { label: "Sus", color: "#ff9292", sell: 5, luck: .04 },
+  ejected: { label: "Ejected", color: "#b5c0d3", sell: 8, luck: .10 }
+};
+
+const ORDER = [
+  "forbidden", "ancient", "mythic", "legendary",
+  "ejected", "sus", "epic", "rare", "common"
+];
+
+const SAVE_KEY = "frostboundRngSaveV13";
+const OLD_KEYS = ["frostboundRngSaveV12", "frostboundRngSaveV11"];
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+const state = {
+  totalRolls: 0,
+  counts: {},
+  history: [],
+  lastId: null,
+  coins: 0,
+  luck: 0,
+  effects: true,
+  intense: true,
+  snow: true,
+  collectionOpen: true,
+  shopOpen: false,
+  groupOpen: {},
+  sort: "rarity",
+  ownedOnly: false,
+  auto: false,
+  rolling: false,
+  previewId: null
+};
+
+let autoToken = 0;
+let toastTimer;
+let saveIconTimer;
+let finishCinematic = null;
+let previousFocus = null;
+let debugActive = false;
+
+function validCount(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function luckPrice() {
+  return Math.round(25 * Math.pow(1.55, state.luck));
+}
+
+function effectiveWeight(c) {
+  return c.weight * (1 + state.luck * RARITIES[c.rarity].luck * 0.5);
+}
+
+function totalEffectiveWeight() {
+  return CHARACTERS.reduce((sum, c) => sum + effectiveWeight(c), 0);
+}
+
+function loadSave() {
+  for (const key of [SAVE_KEY, ...OLD_KEYS]) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) exit;
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== "object" || Array.isArray(saved)) exit;
+
+      if (validCount(saved.totalRolls)) state.totalRolls = saved.totalRolls;
+      if (validCount(saved.coins)) state.coins = saved.coins;
+      if (validCount(saved.luck)) state.luck = saved.luck;
+
+      for (const c of CHARACTERS) {
+        const count = saved.counts?.[c.id];
+        if (validCount(count)) state.counts[c.id] = count;
+      }
+
+      state.effects = saved.effects !== false;
+      state.intense = saved.intense !== false;
+      state.snow = saved.snow !== false;
+      state.collectionOpen = saved.collectionOpen !== false;
+      state.shopOpen = saved.shopOpen === true;
+      state.ownedOnly = saved.ownedOnly === true;
+
+      if (["rarity", "name", "rarest", "count"].includes(saved.sort)) {
+        state.sort = saved.sort;
+      }
+
+      for (const rarity of ORDER) {
+        if (typeof saved.groupOpen?.[rarity] === "boolean") {
+          state.groupOpen[rarity] = saved.groupOpen[rarity];
+        }
+      }
+
+      if (Array.isArray(saved.history)) {
+        state.history = saved.history
+          .filter(h => h && BY_ID.has(h.id))
+          .slice(0, 25)
+          .map(h => ({ id: h.id, isNew: h.isNew === true }));
+      }
+
+      if (BY_ID.has(saved.lastId)) state.lastId = saved.lastId;
+      return;
+    } catch {
+      // Try the next compatible save without deleting existing data.
+    }
+  }
+}
+
+function saveGame(manual = false) {
+  const data = {
+    version: 13,
+    totalRolls: state.totalRolls,
+    counts: state.counts,
+    history: state.history,
+    lastId: state.lastId,
+    coins: state.coins,
+    luck: state.luck,
+    effects: state.effects,
+    intense: state.intense,
+    snow: state.snow,
+    collectionOpen: state.collectionOpen,
+    shopOpen: state.shopOpen,
+    groupOpen: state.groupOpen,
+    sort: state.sort,
+    ownedOnly: state.ownedOnly,
+    savedAt: Date.now()
+  };
+
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    showSaveIcon();
+    if (manual) notify("PROGRESS SAVED");
+    return true;
+  } catch {
+    if (manual) notify("SAVE FAILED — browser storage unavailable");
+    return false;
+  }
+}
+
+function showSaveIcon() {
+  clearTimeout(saveIconTimer);
+  const icon = $("saveStatus");
+
+  icon.hidden = false;
+  icon.classList.remove("fading");
+  icon.classList.add("visible");
+
+  saveIconTimer = setTimeout(() => {
+    icon.classList.remove("visible");
+    icon.classList.add("fading");
+
+    setTimeout(() => {
+      icon.hidden = true;
+      icon.classList.remove("fading");
+    }, 300);
+  }, 1200);
+}
+
+function notify(message) {
+  clearTimeout(toastTimer);
+  $("toast").textContent = message;
+  $("toast").hidden = false;
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 2400);
+}
+
+function makePortrait(container, character) {
+  container.replaceChildren();
+  const image = document.createElement("img");
+  image.alt = character.name;
+  image.draggable = false;
+
+  image.addEventListener("error", () => {
+    const fallback = document.createElement("span");
+    fallback.className = "missing";
+    fallback.textContent = character.name;
+    container.replaceChildren(fallback);
+  }, { once: true });
+
+  image.src = encodeURI(character.image);
+  container.append(image);
+}
+
+function chance(character) {
+  const percentage = effectiveWeight(character) / totalEffectiveWeight() * 100;
+  const oneIn = totalEffectiveWeight() / effectiveWeight(character);
+  return percentage.toFixed(3) + "% · 1 in " +
+    oneIn.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function pickCharacter() {
+  const total = totalEffectiveWeight();
+  let value = Math.random() * total;
+
+  for (const character of CHARACTERS) {
+    value -= effectiveWeight(character);
+    if (value < 0) return character;
+  }
+
+  return CHARACTERS[CHARACTERS.length - 1];
+}
+
+function updateStats() {
+  const unique = CHARACTERS.filter(c => state.counts[c.id] > 0).length;
+  const totalOwned = CHARACTERS.reduce((sum, c) => sum + (state.counts[c.id] || 0), 0);
+  const special = CHARACTERS
+    .filter(c => ["ancient", "forbidden"].includes(c.rarity))
+    .reduce((sum, c) => sum + (state.counts[c.id] || 0), 0);
+
+  $("totalRolls").textContent = state.totalRolls.toLocaleString();
+  $("uniqueCount").textContent = unique;
+  $("dupeCount").textContent = Math.max(0, totalOwned - unique).toLocaleString();
+  $("rarePulls").textContent = special.toLocaleString();
+  $("coinCount").textContent = state.coins.toLocaleString();
+  $("luckCount").textContent = state.luck.toLocaleString();
+  $("collectionCount").textContent = "— " + unique + " / " + CHARACTERS.length;
+  $("luckPrice").textContent = "Cost: " + luckPrice().toLocaleString() + " coins";
+  $("buyLuck").disabled = state.coins < luckPrice();
+}
+
+function renderHistory() {
+  $("history").replaceChildren();
+
+  if (!state.history.length) {
+    const item = document.createElement("li");
+    item.className = "small";
+    item.textContent = "Your next discovery is waiting.";
+    $("history").append(item);
+    return;
+  }
+
+  for (const entry of state.history) {
+    const c = BY_ID.get(entry.id);
+    const rarity = RARITIES[c.rarity];
+
+    const row = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = c.name;
+
+    if (entry.isNew) {
+      const tag = document.createElement("span");
+      tag.className = "new-tag";
+      tag.textContent = "NEW";
+      name.append(tag);
+    }
+
+    const info = document.createElement("span");
+    info.style.color = rarity.color;
+    info.textContent = rarity.label;
+
+    row.append(name, info);
+    $("history").append(row);
+  }
+}
+
+function sortedCards(cards) {
+  return cards.slice().sort((a, b) => {
+    if (state.sort === "count") {
+      return (state.counts[b.id] || 0) - (state.counts[a.id] || 0) ||
+        a.name.localeCompare(b.name);
+    }
+    if (state.sort === "rarest") {
+      return a.weight - b.weight || a.name.localeCompare(b.name);
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function collectionCard(c) {
+  const owned = (state.counts[c.id] || 0) > 0;
+  const card = document.createElement(owned ? "button" : "div");
+  card.className = "collect-card" + (owned ? "" : " locked");
+  card.style.setProperty("--accent", c.color);
+
+  const portrait = document.createElement("div");
+  portrait.className = "portrait";
+
+  if (owned) {
+    card.type = "button";
+    makePortrait(portrait, c);
+    card.addEventListener("click", () => showDiscovery(c, false, true));
+  } else {
+    portrait.classList.add("locked-portrait");
+    portrait.textContent = "?";
+  }
+
+  const name = document.createElement("span");
+  name.className = "card-name";
+  name.textContent = owned ? c.name : "???";
+
+  const info = document.createElement("span");
+  info.className = "small";
+  info.style.color = RARITIES[c.rarity].color;
+  info.textContent = RARITIES[c.rarity].label +
+    (owned ? " · ×" + state.counts[c.id] : "");
+
+  card.append(portrait, name, info);
+  return card;
+}
+
+function renderCollection() {
+  const container = $("collection");
+  container.replaceChildren();
+
+  const query = $("searchInput").value.trim().toLocaleLowerCase();
+  const visible = CHARACTERS.filter(c => {
+    const owned = (state.counts[c.id] || 0) > 0;
+    if (state.ownedOnly && !owned) return false;
+    if (query) return owned && c.name.toLocaleLowerCase().includes(query);
+    return true;
+  });
+
+  if (!visible.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No matching discoveries.";
+    container.append(empty);
+    return;
+  }
+
+  if (state.sort !== "rarity") {
+    const grid = document.createElement("div");
+    grid.className = "collection-grid";
+    for (const c of sortedCards(visible)) grid.append(collectionCard(c));
+    container.append(grid);
+    return;
+  }
+
+  for (const key of ORDER) {
+    const cards = visible.filter(c => c.rarity === key);
+    if (!cards.length) exit;
+
+    const group = document.createElement("details");
+    group.className = "rarity-group";
+    group.open = state.groupOpen[key] !== false;
+    group.style.setProperty("--group-color", RARITIES[key].color);
+
+    const summary = document.createElement("summary");
+    const found = cards.filter(c => state.counts[c.id] > 0).length;
+    summary.textContent = RARITIES[key].label + " — " + found + " / " + cards.length;
+
+    const grid = document.createElement("div");
+    grid.className = "collection-grid";
+    for (const c of sortedCards(cards)) grid.append(collectionCard(c));
+
+    group.append(summary, grid);
+    group.addEventListener("toggle", () => {
+      if (!group.isConnected) return;
+      state.groupOpen[key] = group.open;
+      saveGame();
+    });
+
+    container.append(group);
+  }
+}
+
+function showResult(c, animate = true) {
+  const rarity = RARITIES[c.rarity];
+
+  $("resultCard").style.setProperty("--accent", rarity.color);
+  $("stage").style.setProperty("--accent", rarity.color);
+  $("resultName").style.color = c.color;
+  $("resultName").textContent = c.name;
+  $("resultRarity").textContent = rarity.label;
+  $("resultRarity").style.color = rarity.color;
+  $("resultOdds").textContent = chance(c);
+  makePortrait($("resultPortrait"), c);
+
+  if (animate && state.effects && !reducedMotion.matches) playEffects(c);
+}
+
+function restartAnimation(element, className) {
+  element.classList.remove(className);
+  void element.offsetWidth;
+  element.classList.add(className);
+}
+
+function playEffects(c) {
+  restartAnimation($("resultCard"), "reveal");
+  $("stageRing").style.setProperty("--accent", c.color);
+  restartAnimation($("stageRing"), "play");
+
+  if (state.intense && ["legendary", "mythic", "ancient", "forbidden", "ejected"].includes(c.rarity)) {
+    restartAnimation($("stage"), "rare-reveal");
+
+    for (let i = 0; i < 10; i++) {
+      const spark = document.createElement("span");
+      spark.className = "spark";
+      spark.textContent = i % 2 ? "✧" : "❄";
+      spark.style.left = 8 + Math.random() * 84 + "%";
+      spark.style.top = 40 + Math.random() * 45 + "%";
+      spark.style.setProperty("--accent", c.color);
+      spark.addEventListener("animationend", () => spark.remove(), { once: true });
+      $("stage").append(spark);
+    }
+  }
+}
+
+function showDiscovery(c, fast = false, fromCollection = false) {
+  return new Promise(resolve => {
+    const rarity = RARITIES[c.rarity];
+    const overlay = $("cinematic");
+    const focusBefore = document.activeElement;
+    const owned = state.counts[c.id] || 0;
+
+    state.previewId = c.id;
+
+    overlay.classList.toggle("fast", fast);
+    $("cineContent").style.setProperty("--accent", c.color);
+    $("cineLabel").textContent = fromCollection
+      ? "Card preview"
+      : "New companion discovered";
+
+    $("cineName").textContent = c.name;
+    $("cineRarity").textContent = rarity.label;
+    $("cineRarity").style.color = rarity.color;
+    $("cineOdds").textContent = chance(c);
+    $("cineOwned").textContent = "Owned: " + owned +
+      " · Sell value: " + rarity.sell + " coins each";
+
+    makePortrait($("cinePortrait"), c);
+
+    $("previewSellOne").disabled = owned < 1;
+    $("previewSellAll").disabled = owned < 1;
+
+    overlay.hidden = false;
+    $("skipReveal").focus();
+
+    if (state.effects && !reducedMotion.matches) {
+      restartAnimation($("cineRing"), "play");
+    }
+
+    let finished = false;
+    const timer = fromCollection ? null : setTimeout(close, fast ? 750 : 1900);
+
+    function close() {
+      if (finished) return;
+      finished = true;
+
+      if (timer) clearTimeout(timer);
+      overlay.hidden = true;
+      $("cineRing").classList.remove("play");
+      finishCinematic = null;
+      state.previewId = null;
+
+      if (focusBefore?.isConnected && !focusBefore.disabled) focusBefore.focus();
+      resolve();
+    }
+
+    finishCinematic = close;
+  });
+}
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function updateButtons() {
+  $("rollBtn").disabled = state.rolling || state.auto;
+  $("quickBtn").disabled = state.rolling || state.auto;
+  $("autoBtn").textContent = "Auto Roll: " + (state.auto ? "On" : "Off");
+  $("autoBtn").setAttribute("aria-pressed", String(state.auto));
+
+  for (const id of ["debugGive", "debugGiveAll", "debugRoll100", "debugReset", "debugPreview"]) {
+    $(id).disabled = state.rolling;
+  }
+
+  updateStats();
+}
+
+function recordCard(c) {
+  const isNew = !(state.counts[c.id] > 0);
+  state.counts[c.id] = (state.counts[c.id] || 0) + 1;
+  state.totalRolls++;
+  state.lastId = c.id;
+  state.history.unshift({ id: c.id, isNew });
+  state.history = state.history.slice(0, 25);
+  return isNew;
+}
+
+function refresh() {
+  updateStats();
+  renderHistory();
+  renderCollection();
+}
+
+async function slotRoll(quick = false, fromAuto = false) {
+  if (state.rolling) return;
+
+  state.rolling = true;
+  updateButtons();
+
+  const result = pickCharacter();
+  const baseTime = quick || fromAuto ? 850 : 1750;
+
+  try {
+    resultName.textContent = "Rolling";
+    resultRarity.textContent = "???";
+    resultOdds.textContent = "The frost machine is rolling…";
+
+    resultCard.classList.add("rolling");
+
+    const start = performance.now();
+    let nextChange = 0;
+
+    while (performance.now() - start < baseTime) {
+      const now = performance.now();
+
+      if (now >= nextChange) {
+        makePortrait(resultPortrait, pickCharacter());
+        restartAnimation(resultPortrait, "roll");
+        nextChange = now + (quick || fromAuto ? 70 : 95);
+      }
+
+      await wait(20);
+    }
+
+    resultCard.classList.remove("rolling");
+
+    makePortrait(resultPortrait, result);
+    restartAnimation(resultPortrait, "roll");
+
+    const isNew = recordCard(result);
+    showResult(result);
+    refresh();
+    saveGame();
+
+    if (isNew) await showDiscovery(result, fromAuto);
+  } finally {
+    resultCard.classList.remove("rolling");
+    state.rolling = false;
+    updateButtons();
+  }
+}
+
+async function setAuto(on) {
+  state.auto = on;
+  const token = ++autoToken;
+  updateButtons();
+
+  if (!on) return;
+
+  while (state.auto && token === autoToken) {
+    if (!state.rolling && $("modal").hidden && $("debugPanel").hidden) {
+      await slotRoll(true, true);
+    }
+    await wait(280);
+  }
+}
+
+function openCharacter(c) {
+  previousFocus = document.activeElement;
+  $("modalCard").style.setProperty("--accent", c.color);
+  $("modalName").textContent = c.name;
+  $("modalRarity").textContent = RARITIES[c.rarity].label;
+  $("modalRarity").style.color = RARITIES[c.rarity].color;
+  $("modalCount").textContent = "Collected: " + (state.counts[c.id] || 0);
+  $("modalOdds").textContent = "Roll chance: " + chance(c);
+  makePortrait($("modalPortrait"), c);
+  $("modal").hidden = false;
+  $("closeModal").focus();
+}
+
+function closeModal() {
+  $("modal").hidden = true;
+  previousFocus?.focus();
+}
+
+function sellPreviewCards(amount) {
+  const c = BY_ID.get(state.previewId);
+  if (!c) return;
+
+  const owned = state.counts[c.id] || 0;
+  if (owned <= 0) return;
+
+  const selling = amount === "all" ? owned : 1;
+  const earned = RARITIES[c.rarity].sell * selling;
+
+  state.counts[c.id] = owned - selling;
+  if (state.counts[c.id] <= 0) delete state.counts[c.id];
+
+  state.coins += earned;
+  refresh();
+  saveGame();
+
+  $("cineOwned").textContent = "Owned: " + (state.counts[c.id] || 0) +
+    " · Sell value: " + RARITIES[c.rarity].sell + " coins each";
+  $("previewSellOne").disabled = !(state.counts[c.id] > 0);
+  $("previewSellAll").disabled = !(state.counts[c.id] > 0);
+
+  notify("SOLD " + selling + " × " + c.name.toUpperCase() + " FOR " + earned + " COINS");
+}
+
+$("rollBtn").addEventListener("click", () => slotRoll());
+$("quickBtn").addEventListener("click", () => slotRoll(true));
+$("autoBtn").addEventListener("click", () => setAuto(!state.auto));
+$("skipReveal").addEventListener("click", () => finishCinematic?.());
+$("saveButton").addEventListener("click", () => saveGame(true));
+
+$("resultCard").addEventListener("click", () => {
+  const c = BY_ID.get(state.lastId);
+  if (c && (state.counts[c.id] || 0) > 0) showDiscovery(c, false, true);
+});
+
+$("resultCard").addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    $("resultCard").click();
+  }
+});
+
+$("previewSellOne").addEventListener("click", () => sellPreviewCards(1));
+$("previewSellAll").addEventListener("click", () => sellPreviewCards("all"));
+
+$("buyLuck").addEventListener("click", () => {
+  const price = luckPrice();
+
+  if (state.coins < price) {
+    notify("NOT ENOUGH COINS");
+    return;
+  }
+
+  state.coins -= price;
+  state.luck++;
+  refresh();
+  saveGame();
+  notify("LUCK INCREASED TO " + state.luck);
+});
+
+$("closeModal").addEventListener("click", closeModal);
+$("modal").addEventListener("click", e => {
+  if (e.target === $("modal")) closeModal();
+});
+
+$("logo").addEventListener("error", () => {
+  $("logo").hidden = true;
+  $("logoFallback").hidden = false;
+});
+
+for (const [id, key] of [
+  ["effectsToggle", "effects"],
+  ["intenseToggle", "intense"],
+  ["snowToggle", "snow"],
+  ["ownedOnly", "ownedOnly"]
+]) {
+  $(id).addEventListener("change", () => {
+    state[key] = $(id).checked;
+    if (key === "ownedOnly") renderCollection();
+    saveGame();
+  });
+}
+
+$("collectionPanel").addEventListener("toggle", () => {
+  state.collectionOpen = $("collectionPanel").open;
+  saveGame();
+});
+
+$("shopPanel").addEventListener("toggle", () => {
+  state.shopOpen = $("shopPanel").open;
+  saveGame();
+});
+
+$("sortSelect").addEventListener("change", () => {
+  state.sort = $("sortSelect").value;
+  renderCollection();
+  saveGame();
+});
+
+$("searchInput").addEventListener("input", renderCollection);
+
+function setGroups(open) {
+  for (const key of ORDER) state.groupOpen[key] = open;
+  renderCollection();
+  saveGame();
+}
+
+$("expandGroups").addEventListener("click", () => setGroups(true));
+$("collapseGroups").addEventListener("click", () => setGroups(false));
+
+let logoClicks = 0;
+$("logoButton").addEventListener("click", () => {
+  if (debugActive) {
+    $("debugPanel").hidden = !$("debugPanel").hidden;
+    return;
+  }
+
+  logoClicks++;
+  if (logoClicks >= 10) {
+    debugActive = true;
+    $("debugButton").hidden = false;
+    $("debugPanel").hidden = false;
+    notify("DEBUG ACTIVE");
+  }
+});
+
+$("debugButton").addEventListener("click", () => {
+  $("debugPanel").hidden = !$("debugPanel").hidden;
+});
+
+$("debugClose").addEventListener("click", () => {
+  $("debugPanel").hidden = true;
+});
+
+for (const c of CHARACTERS.slice().sort((a, b) => a.name.localeCompare(b.name))) {
+  const option = document.createElement("option");
+  option.value = c.id;
+  option.textContent = c.name;
+  $("debugCharacter").append(option);
+}
+
+$("debugPreview").addEventListener("click", async () => {
+  if (state.rolling) return;
+  state.rolling = true;
+  updateButtons();
+
+  try {
+    await showDiscovery(BY_ID.get($("debugCharacter").value), false, true);
+  } finally {
+    state.rolling = false;
+    updateButtons();
+  }
+});
+
+$("debugGive").addEventListener("click", () => {
+  if (state.rolling) return;
+  const c = BY_ID.get($("debugCharacter").value);
+  recordCard(c);
+  showResult(c);
+  refresh();
+  saveGame();
+  notify(c.name.toUpperCase() + " ADDED");
+});
+
+$("debugGiveAll").addEventListener("click", () => {
+  if (state.rolling) return;
+  for (const c of CHARACTERS) {
+    if (!(state.counts[c.id] > 0)) state.counts[c.id] = 1;
+  }
+  refresh();
+  saveGame();
+  notify("ALL CARDS UNLOCKED");
+});
+
+$("debugRoll100").addEventListener("click", () => {
+  if (state.rolling) return;
+  let c;
+  for (let i = 0; i < 100; i++) {
+    c = pickCharacter();
+    recordCard(c);
+  }
+  showResult(c);
+  refresh();
+  saveGame();
+  notify("100 DEBUG ROLLS COMPLETE");
+});
+
+$("debugAddCoins").addEventListener("click", () => {
+  state.coins += 100;
+  refresh();
+  saveGame();
+  notify("100 COINS ADDED");
+});
+
+$("debugReset").addEventListener("click", () => {
+  if (state.rolling) return;
+  setAuto(false);
+
+  if (!confirm("Reset all collection progress, coins, luck, and rolls?")) return;
+
+  state.totalRolls = 0;
+  state.counts = {};
+  state.history = [];
+  state.lastId = null;
+  state.coins = 0;
+  state.luck = 0;
+
+  $("resultPortrait").replaceChildren();
+  const empty = document.createElement("span");
+  empty.className = "missing";
+  empty.textContent = "Awaiting summon…";
+  $("resultPortrait").append(empty);
+
+  $("resultName").textContent = "???";
+  $("resultName").style.color = "";
+  $("resultRarity").textContent = "Unknown";
+  $("resultRarity").style.color = "";
+  $("resultOdds").textContent = "Press Roll to summon";
+  $("resultCard").style.removeProperty("--accent");
+
+  refresh();
+  saveGame();
+  notify("PROGRESS RESET");
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if (!$("cinematic").hidden) finishCinematic?.();
+    else if (!$("modal").hidden) closeModal();
+    else $("debugPanel").hidden = true;
+  }
+
+  if (e.key === "Tab") {
+    const dialog = !$("cinematic").hidden ? $("cinematic") :
+      !$("modal").hidden ? $("modal") : null;
+    if (!dialog) return;
+
+    const buttons = [...dialog.querySelectorAll("button:not(:disabled)")];
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+const canvas = $("snow");
+const ctx = canvas.getContext("2d");
+let flakes = [];
+let lastFrame = 0;
+
+function resizeSnow() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  flakes = Array.from({ length: Math.min(65, Math.floor(innerWidth / 20)) }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    radius: .6 + Math.random() * 1.5,
+    speed: 12 + Math.random() * 20,
+    drift: -5 + Math.random() * 10
+  }));
+}
+
+function drawSnow(time) {
+  const dt = Math.min((time - lastFrame) / 1000 || 0, .05);
+  lastFrame = time;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (state.snow && !document.hidden) {
+    ctx.fillStyle = "#d6e9ff70";
+    for (const f of flakes) {
+      if (!reducedMotion.matches) {
+        f.y += f.speed * dt;
+        f.x += f.drift * dt;
+        if (f.y > canvas.height + 5) f.y = -5;
+        if (f.x < -5) f.x = canvas.width + 5;
+        if (f.x > canvas.width + 5) f.x = -5;
+      }
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  requestAnimationFrame(drawSnow);
+}
+
+addEventListener("resize", resizeSnow);
+addEventListener("pagehide", () => saveGame());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    setAuto(false);
+    saveGame();
+  }
+});
+
+loadSave();
+$("effectsToggle").checked = state.effects;
+$("intenseToggle").checked = state.intense;
+$("snowToggle").checked = state.snow;
+$("ownedOnly").checked = state.ownedOnly;
+$("sortSelect").value = state.sort;
+$("collectionPanel").open = state.collectionOpen;
+$("shopPanel").open = state.shopOpen;
+
+if (state.lastId && state.counts[state.lastId] > 0) {
+  showResult(BY_ID.get(state.lastId), false);
+}
+
+refresh();
+updateButtons();
+saveGame();
+resizeSnow();
+requestAnimationFrame(drawSnow);
+</script>
+</body>
+</html>
